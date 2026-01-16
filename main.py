@@ -1,82 +1,95 @@
-# -------- FILE HANDLING --------
-from utils.file_handler import (
-    read_sales_data,
-    parse_transactions,
-    validate_and_filter
-)
+# ---------------- FILE HANDLING ----------------
+from utils.file_handler import read_sales_data
+from utils.file_handler import parse_transactions
+from utils.file_handler import validate_and_filter
 
-# -------- DATA PROCESSING / ANALYTICS --------
-from utils.data_processor import (
-    calculate_total_revenue,
-    region_wise_sales,
-    top_selling_products,
-    low_performing_products,
-    customer_analysis,
-    daily_sales_trend,
-    find_peak_sales_day,
-    generate_sales_report
-)
+# ---------------- DATA PROCESSING ----------------
+from utils.data_processor import calculate_total_revenue
+from utils.data_processor import region_wise_sales
+from utils.data_processor import top_selling_products
+from utils.data_processor import low_performing_products
+from utils.data_processor import customer_analysis
+from utils.data_processor import daily_sales_trend
+from utils.data_processor import find_peak_sales_day
+from utils.data_processor import generate_sales_report
 
-# -------- API INTEGRATION --------
-from utils.api_handler import (
-    fetch_all_products,
-    create_product_mapping,
-    enrich_sales_data,
-    save_enriched_data
-)
+# ---------------- API ----------------
+from utils.api_handler import fetch_all_products
+from utils.api_handler import create_product_mapping
+from utils.api_handler import enrich_sales_data
+from utils.api_handler import save_enriched_data
 
 
 def main():
+
+    print("----------------------------------------")
+    print("        SALES ANALYSIS PROGRAM")
+    print("----------------------------------------")
+
     try:
-        print("=" * 40)
-        print("      SALES ANALYTICS SYSTEM")
-        print("=" * 40)
+        # STEP 1: READ FILE
+        print("\nStep 1: Reading sales file")
+        lines = read_sales_data("data/sales_data.txt")
+        print("Total lines read:", len(lines))
 
-        # ------------------ STEP 1 ------------------
-        print("\n[1/10] Reading sales data...")
-        raw_lines = read_sales_data("data/sales_data.txt")
-        print(f" Successfully read {len(raw_lines)} transactions")
+        # STEP 2: PARSE DATA
+        print("\nStep 2: Parsing data")
+        data, wrong_rows = parse_transactions(lines)
+        print("Valid records:", len(data))
+        if wrong_rows > 0:
+            print("Invalid rows skipped:", wrong_rows)
 
-        # ------------------ STEP 2 ------------------
-        print("\n[2/10] Parsing and cleaning data...")
-        transactions, parse_invalid = parse_transactions(raw_lines)
-        print(f" Parsed {len(transactions)} records")
-        if parse_invalid:
-            print(f"⚠ Ignored {parse_invalid} invalid rows")
+        # STEP 3: FILTER OPTION
+        print("\nStep 3: Filter options")
 
-        # ------------------ STEP 3 ------------------
-        print("\n[3/10] Filter Options Available:")
-        regions = sorted(set(t['Region'] for t in transactions))
-        amounts = [t['Quantity'] * t['UnitPrice'] for t in transactions]
+        region_list = []
+        amount_list = []
 
-        print("Regions:", ", ".join(regions))
-        print(f"Amount Range: Rs. {min(amounts):,.0f} - Rs. {max(amounts):,.0f}")
+        for item in data:
+            if item['Region'] not in region_list:
+                region_list.append(item['Region'])
 
-        choice = input("Do you want to filter data? (y/n): ").lower()
+            amount_list.append(item['Quantity'] * item['UnitPrice'])
 
-        if choice == 'y':
-            region = input("Enter region (or press Enter to skip): ").strip() or None
-            min_amt = input("Enter minimum amount (or press Enter to skip): ").strip()
-            max_amt = input("Enter maximum amount (or press Enter to skip): ").strip()
+        print("Available regions:", ", ".join(region_list))
+        print("Amount range:", min(amount_list), "to", max(amount_list))
 
-            min_amt = float(min_amt) if min_amt else None
-            max_amt = float(max_amt) if max_amt else None
+        user_choice = input("Do you want to filter data? (y/n): ").lower()
 
-            valid_data, summary = validate_and_filter(
-                transactions,
-                region=region,
+        if user_choice == "y":
+            user_region = input("Enter region (leave blank for all): ").strip()
+            if user_region == "":
+                user_region = None
+
+            min_amt = input("Enter minimum amount (leave blank): ").strip()
+            max_amt = input("Enter maximum amount (leave blank): ").strip()
+
+            if min_amt == "":
+                min_amt = None
+            else:
+                min_amt = float(min_amt)
+
+            if max_amt == "":
+                max_amt = None
+            else:
+                max_amt = float(max_amt)
+
+            valid_data, info = validate_and_filter(
+                data,
+                region=user_region,
                 min_amount=min_amt,
                 max_amount=max_amt
             )
         else:
-            valid_data, summary = validate_and_filter(transactions)
+            valid_data, info = validate_and_filter(data)
 
-        # ------------------ STEP 4 ------------------
-        print("\n[4/10] Validating transactions...")
-        print(f" Valid: {summary['final_count']} | Invalid: {summary['invalid']}")
+        # STEP 4: VALIDATION RESULT
+        print("\nStep 4: Validation result")
+        print("Final valid records:", info['final_count'])
+        print("Invalid records:", info['invalid'])
 
-        # ------------------ STEP 5 ------------------
-        print("\n[5/10] Analyzing sales data...")
+        # STEP 5: BASIC ANALYSIS
+        print("\nStep 5: Doing analysis")
         calculate_total_revenue(valid_data)
         region_wise_sales(valid_data)
         top_selling_products(valid_data)
@@ -84,46 +97,53 @@ def main():
         customer_analysis(valid_data)
         daily_sales_trend(valid_data)
         find_peak_sales_day(valid_data)
-        print(" Analysis complete")
+        print("Analysis finished")
 
-        # ------------------ STEP 6 ------------------
-        print("\n[6/10] Fetching product data from API...")
-        api_products = fetch_all_products()
-        print(f" Fetched {len(api_products)} products")
+        # STEP 6: API DATA
+        print("\nStep 6: Getting product data from API")
+        api_data = fetch_all_products()
+        print("Products received from API:", len(api_data))
 
-        # ------------------ STEP 7 ------------------
-        print("\n[7/10] Enriching sales data...")
-        product_mapping = create_product_mapping(api_products)
-        enriched_transactions = enrich_sales_data(valid_data, product_mapping)
+        # STEP 7: ENRICH DATA
+        print("\nStep 7: Matching sales data with API data")
+        product_map = create_product_mapping(api_data)
+        enriched_data = enrich_sales_data(valid_data, product_map)
 
-        enriched_count = sum(1 for t in enriched_transactions if t.get("API_Match"))
-        rate = (enriched_count / len(valid_data)) * 100 if valid_data else 0
-        print(f" Enriched {enriched_count}/{len(valid_data)} transactions ({rate:.1f}%)")
+        matched = 0
+        for item in enriched_data:
+            if item.get("API_Match") == True:
+                matched = matched + 1
 
-        # ------------------ STEP 8 ------------------
-        print("\n[8/10] Saving enriched data...")
-        save_enriched_data(enriched_transactions)
-        print(" Saved to: data/enriched_sales_data.txt")
+        if len(valid_data) > 0:
+            percent = (matched / len(valid_data)) * 100
+        else:
+            percent = 0
 
-        # ------------------ STEP 9 ------------------
-        print("\n[9/10] Generating report...")
-        generate_sales_report(valid_data, enriched_transactions)
-        print(" Report saved to: output/sales_report.txt")
+        print("Matched records:", matched)
+        print("Match percentage:", round(percent, 2), "%")
 
-        # ------------------ STEP 10 ------------------
-        print("\n[10/10] Process Complete!")
-        print("=" * 40)
+        # STEP 8: SAVE ENRICHED DATA
+        print("\nStep 8: Saving enriched data")
+        save_enriched_data(enriched_data)
 
-    except Exception as e:
-        print("\n ERROR OCCURRED")
-        print("Reason:", e)
-        print("Please check file paths and data format.")
-        print("=" * 40)
+        # STEP 9: REPORT
+        print("\nStep 9: Creating report file")
+        generate_sales_report(valid_data, enriched_data)
+
+        # STEP 10: DONE
+        print("\nStep 10: Program finished successfully")
+        print("----------------------------------------")
+
+    except Exception as err:
+        print("\nSome error occurred")
+        print("Error message:", err)
+        print("Please check input files and folder names")
 
 
-# Run program
+# PROGRAM START
 if __name__ == "__main__":
     main()
+
 
 
 
