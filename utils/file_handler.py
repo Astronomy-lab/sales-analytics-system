@@ -1,135 +1,175 @@
 # utils/file_handler.py
 
-# This function reads a file and returns all the lines except the first (header)
-def read_sales_data(filepath):
+# --------------------------------------------------
+# FUNCTION 1: READ SALES DATA FROM FILE
+# --------------------------------------------------
+def read_sales_data(file_path):
     """
-    Read sales data from a file.
-    Try utf-8, latin-1, and cp1252 encodings.
-    Returns list of lines (without header).
+    This function reads a sales file.
+    It tries different encodings because some files
+    do not open with utf-8.
+    It returns all lines except the first line (header).
     """
+
     encodings = ['utf-8', 'latin-1', 'cp1252']
 
     for enc in encodings:
         try:
-            file = open(filepath, 'r', encoding=enc)
+            file = open(file_path, 'r', encoding=enc)
             lines = file.readlines()
             file.close()
-            # Skip the first line because it is header
-            return lines[1:]
+
+            data_lines = []
+
+            # skip first line because it is header
+            for line in lines[1:]:
+                line = line.strip()   # remove spaces and \n
+                if line != "":
+                    data_lines.append(line)
+
+            return data_lines
+
         except UnicodeDecodeError:
-            # If encoding fails, try the next one
+            # if this encoding does not work, try next
             continue
+
         except FileNotFoundError:
-            print("File not found: " + filepath)
+            print("File not found:", file_path)
             return []
 
-    print("No encoding worked for this file.")
+    print("File encoding not supported")
     return []
 
 
-# This function turns raw lines into transaction dictionaries
-def parse_transactions(raw_lines):
+# --------------------------------------------------
+# FUNCTION 2: PARSE RAW LINES INTO DICTIONARY
+# --------------------------------------------------
+def parse_transactions(lines):
     """
-    Convert each line to a dictionary with keys:
-    TransactionID, Date, ProductID, ProductName, Quantity, UnitPrice, CustomerID, Region
+    This function converts each line into a dictionary.
+    Each line should have 8 values separated by '|'
     """
+
     transactions = []
     invalid_count = 0
 
-    for line in raw_lines:
-        line = line.strip()  # remove spaces and \n
+    for line in lines:
+        line = line.strip()
+
         if line == "":
-            continue  # skip empty lines
+            continue
 
-        parts = line.split('|')  # split by pipe symbol
+        parts = line.split('|')
 
+        # if line does not have 8 parts, skip it
         if len(parts) != 8:
             invalid_count = invalid_count + 1
-            continue  # skip invalid lines
+            continue
 
         try:
             transaction = {}
+
             transaction['TransactionID'] = parts[0]
             transaction['Date'] = parts[1]
             transaction['ProductID'] = parts[2]
-            transaction['ProductName'] = parts[3].replace(',', '')  # remove commas
+
+            # remove commas from product name
+            transaction['ProductName'] = parts[3].replace(',', '')
+
+            # convert quantity to int
             transaction['Quantity'] = int(parts[4])
-            transaction['UnitPrice'] = float(parts[5].replace(',', ''))
+
+            # remove commas and convert price to float
+            price = parts[5].replace(',', '')
+            transaction['UnitPrice'] = float(price)
+
             transaction['CustomerID'] = parts[6]
             transaction['Region'] = parts[7]
 
             transactions.append(transaction)
+
         except:
             invalid_count = invalid_count + 1
 
     return transactions, invalid_count
 
 
-# This function checks transactions and filters them
+# --------------------------------------------------
+# FUNCTION 3: VALIDATE AND FILTER TRANSACTIONS
+# --------------------------------------------------
 def validate_and_filter(transactions, region=None, min_amount=None, max_amount=None):
     """
-    Check transactions if they are valid.
-    Can also filter by region and amount.
-    Returns a list of valid transactions and a summary dictionary.
+    This function checks whether transactions are valid.
+    It can also filter by region and total amount.
     """
-    valid = []
+
+    valid_transactions = []
+
     invalid = 0
-    filtered_region = 0
-    filtered_amount = 0
+    removed_region = 0
+    removed_amount = 0
 
     for t in transactions:
-        amount = t['Quantity'] * t['UnitPrice']
+        quantity = t['Quantity']
+        price = t['UnitPrice']
+        amount = quantity * price
 
-        # Check if transaction is valid
-        if t['Quantity'] <= 0:
+        # basic validation checks
+        if quantity <= 0:
             invalid = invalid + 1
             continue
-        if t['UnitPrice'] <= 0:
+
+        if price <= 0:
             invalid = invalid + 1
             continue
+
         if t['CustomerID'] == "":
             invalid = invalid + 1
             continue
+
         if t['Region'] == "":
             invalid = invalid + 1
             continue
-        if t['TransactionID'][0] != "T":
-            invalid = invalid + 1
-            continue
-        if t['ProductID'][0] != "P":
-            invalid = invalid + 1
-            continue
-        if t['CustomerID'][0] != "C":
+
+        if t['TransactionID'][0] != 'T':
             invalid = invalid + 1
             continue
 
-        # Filter by region
-        if region != None:
+        if t['ProductID'][0] != 'P':
+            invalid = invalid + 1
+            continue
+
+        if t['CustomerID'][0] != 'C':
+            invalid = invalid + 1
+            continue
+
+        # region filter
+        if region is not None:
             if t['Region'] != region:
-                filtered_region = filtered_region + 1
+                removed_region = removed_region + 1
                 continue
 
-        # Filter by minimum amount
-        if min_amount != None:
+        # minimum amount filter
+        if min_amount is not None:
             if amount < min_amount:
-                filtered_amount = filtered_amount + 1
+                removed_amount = removed_amount + 1
                 continue
 
-        # Filter by maximum amount
-        if max_amount != None:
+        # maximum amount filter
+        if max_amount is not None:
             if amount > max_amount:
-                filtered_amount = filtered_amount + 1
+                removed_amount = removed_amount + 1
                 continue
 
-        # If passed all checks, add to valid list
-        valid.append(t)
+        # if everything is okay, add to valid list
+        valid_transactions.append(t)
 
-    # Make summary dictionary
     summary = {}
     summary['total_input'] = len(transactions)
     summary['invalid'] = invalid
-    summary['filtered_by_region'] = filtered_region
-    summary['filtered_by_amount'] = filtered_amount
-    summary['final_count'] = len(valid)
+    summary['filtered_by_region'] = removed_region
+    summary['filtered_by_amount'] = removed_amount
+    summary['final_count'] = len(valid_transactions)
 
-    return valid, summary
+    return valid_transactions, summary
+

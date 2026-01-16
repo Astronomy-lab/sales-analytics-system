@@ -1,116 +1,162 @@
 # utils/data_processor.py
 
-def calculate_total_revenue(transactions):
+# -----------------------------------------
+# TOTAL REVENUE
+# -----------------------------------------
+def calculate_total_revenue(data):
+    # this will store final revenue
     total = 0.0
-    for t in transactions:
-        total += t['Quantity'] * t['UnitPrice']
+
+    for item in data:
+        qty = item['Quantity']
+        price = item['UnitPrice']
+        total = total + (qty * price)
+
     return total
 
 
-def region_wise_sales(transactions):
-    region_data = {}
-    total_sales = calculate_total_revenue(transactions)
+# -----------------------------------------
+# REGION WISE SALES
+# -----------------------------------------
+def region_wise_sales(data):
+    region_info = {}
 
-    for t in transactions:
-        region = t['Region']
-        amount = t['Quantity'] * t['UnitPrice']
+    total_sales = calculate_total_revenue(data)
 
-        if region not in region_data:
-            region_data[region] = {
-                'total_sales': 0.0,
-                'transaction_count': 0
-            }
+    for item in data:
+        reg = item['Region']
+        qty = item['Quantity']
+        price = item['UnitPrice']
+        amount = qty * price
 
-        region_data[region]['total_sales'] += amount
-        region_data[region]['transaction_count'] += 1
+        if reg not in region_info:
+            region_info[reg] = {}
+            region_info[reg]['sales'] = 0.0
+            region_info[reg]['count'] = 0
 
-    for region in region_data:
-        region_data[region]['percentage'] = round(
-            (region_data[region]['total_sales'] / total_sales) * 100, 2
-        )
+        region_info[reg]['sales'] = region_info[reg]['sales'] + amount
+        region_info[reg]['count'] = region_info[reg]['count'] + 1
 
-    return dict(sorted(
-        region_data.items(),
-        key=lambda x: x[1]['total_sales'],
+    for reg in region_info:
+        if total_sales == 0:
+            region_info[reg]['percent'] = 0
+        else:
+            value = (region_info[reg]['sales'] / total_sales) * 100
+            region_info[reg]['percent'] = round(value, 2)
+
+    sorted_regions = sorted(
+        region_info.items(),
+        key=lambda x: x[1]['sales'],
         reverse=True
-    ))
+    )
+
+    return dict(sorted_regions)
 
 
-def top_selling_products(transactions, n=5):
-    products = {}
+# -----------------------------------------
+# TOP SELLING PRODUCTS
+# -----------------------------------------
+def top_selling_products(data, limit=5):
+    product_info = {}
 
-    for t in transactions:
-        name = t['ProductName']
-        qty = t['Quantity']
-        revenue = qty * t['UnitPrice']
+    for item in data:
+        name = item['ProductName']
+        qty = item['Quantity']
+        price = item['UnitPrice']
 
-        if name not in products:
-            products[name] = {'qty': 0, 'revenue': 0.0}
+        if name not in product_info:
+            product_info[name] = {}
+            product_info[name]['qty'] = 0
+            product_info[name]['money'] = 0.0
 
-        products[name]['qty'] += qty
-        products[name]['revenue'] += revenue
+        product_info[name]['qty'] = product_info[name]['qty'] + qty
+        product_info[name]['money'] = product_info[name]['money'] + (qty * price)
 
     sorted_products = sorted(
-        products.items(),
+        product_info.items(),
         key=lambda x: x[1]['qty'],
         reverse=True
     )
 
-    return [
-        (name, data['qty'], data['revenue'])
-        for name, data in sorted_products[:n]
-    ]
+    output = []
+
+    for p in sorted_products[:limit]:
+        output.append((p[0], p[1]['qty'], p[1]['money']))
+
+    return output
 
 
-def customer_analysis(transactions):
-    customers = {}
+# -----------------------------------------
+# CUSTOMER ANALYSIS
+# -----------------------------------------
+def customer_analysis(data):
+    customer_info = {}
 
-    for t in transactions:
-        cid = t['CustomerID']
-        amount = t['Quantity'] * t['UnitPrice']
+    for item in data:
+        cid = item['CustomerID']
+        qty = item['Quantity']
+        price = item['UnitPrice']
+        product = item['ProductName']
+        amount = qty * price
 
-        if cid not in customers:
-            customers[cid] = {
-                'total_spent': 0.0,
-                'purchase_count': 0,
-                'products': set()
-            }
+        if cid not in customer_info:
+            customer_info[cid] = {}
+            customer_info[cid]['spent'] = 0.0
+            customer_info[cid]['orders'] = 0
+            customer_info[cid]['items'] = []
 
-        customers[cid]['total_spent'] += amount
-        customers[cid]['purchase_count'] += 1
-        customers[cid]['products'].add(t['ProductName'])
+        customer_info[cid]['spent'] = customer_info[cid]['spent'] + amount
+        customer_info[cid]['orders'] = customer_info[cid]['orders'] + 1
 
-    for cid in customers:
-        customers[cid]['avg_order_value'] = round(
-            customers[cid]['total_spent'] / customers[cid]['purchase_count'], 2
-        )
-        customers[cid]['products_bought'] = list(customers[cid]['products'])
-        del customers[cid]['products']
+        if product not in customer_info[cid]['items']:
+            customer_info[cid]['items'].append(product)
 
-    return dict(sorted(
-        customers.items(),
-        key=lambda x: x[1]['total_spent'],
+    for cid in customer_info:
+        total = customer_info[cid]['spent']
+        count = customer_info[cid]['orders']
+
+        if count == 0:
+            avg = 0
+        else:
+            avg = total / count
+
+        customer_info[cid]['average'] = round(avg, 2)
+        customer_info[cid]['products_bought'] = customer_info[cid]['items']
+        del customer_info[cid]['items']
+
+    sorted_customers = sorted(
+        customer_info.items(),
+        key=lambda x: x[1]['spent'],
         reverse=True
-    ))
+    )
+
+    return dict(sorted_customers)
 
 
-def daily_sales_trend(transactions):
+# -----------------------------------------
+# DAILY SALES TREND
+# -----------------------------------------
+def daily_sales_trend(data):
     daily = {}
 
-    for t in transactions:
-        date = t['Date']
-        amount = t['Quantity'] * t['UnitPrice']
+    for item in data:
+        date = item['Date']
+        qty = item['Quantity']
+        price = item['UnitPrice']
+        cid = item['CustomerID']
+        amount = qty * price
 
         if date not in daily:
-            daily[date] = {
-                'revenue': 0.0,
-                'transaction_count': 0,
-                'customers': set()
-            }
+            daily[date] = {}
+            daily[date]['sales'] = 0.0
+            daily[date]['count'] = 0
+            daily[date]['customers'] = []
 
-        daily[date]['revenue'] += amount
-        daily[date]['transaction_count'] += 1
-        daily[date]['customers'].add(t['CustomerID'])
+        daily[date]['sales'] = daily[date]['sales'] + amount
+        daily[date]['count'] = daily[date]['count'] + 1
+
+        if cid not in daily[date]['customers']:
+            daily[date]['customers'].append(cid)
 
     for date in daily:
         daily[date]['unique_customers'] = len(daily[date]['customers'])
@@ -119,203 +165,52 @@ def daily_sales_trend(transactions):
     return dict(sorted(daily.items()))
 
 
-def find_peak_sales_day(transactions):
-    daily = daily_sales_trend(transactions)
+# -----------------------------------------
+# PEAK SALES DAY
+# -----------------------------------------
+def find_peak_sales_day(data):
+    daily = daily_sales_trend(data)
 
-    peak_date = None
-    peak_revenue = 0.0
-    peak_count = 0
+    best_day = ""
+    best_amount = 0.0
+    best_count = 0
 
-    for date, stats in daily.items():
-        if stats['revenue'] > peak_revenue:
-            peak_revenue = stats['revenue']
-            peak_count = stats['transaction_count']
-            peak_date = date
+    for date in daily:
+        if daily[date]['sales'] > best_amount:
+            best_amount = daily[date]['sales']
+            best_count = daily[date]['count']
+            best_day = date
 
-    return (peak_date, peak_revenue, peak_count)
-#------------------------------------------------
-#---------------------------------------------
-def low_performing_products(transactions, threshold=10):
-    """
-    Identifies products with low sales
-    """
+    return best_day, best_amount, best_count
 
-    products = {}
 
-    # Step 1: Aggregate quantity and revenue per product
-    for t in transactions:
-        name = t['ProductName']
-        qty = t['Quantity']
-        revenue = qty * t['UnitPrice']
+# -----------------------------------------
+# LOW PERFORMING PRODUCTS
+# -----------------------------------------
+def low_performing_products(data, limit=10):
+    product_info = {}
 
-        if name not in products:
-            products[name] = {
-                'total_qty': 0,
-                'total_revenue': 0.0
-            }
+    for item in data:
+        name = item['ProductName']
+        qty = item['Quantity']
+        price = item['UnitPrice']
 
-        products[name]['total_qty'] += qty
-        products[name]['total_revenue'] += revenue
+        if name not in product_info:
+            product_info[name] = {}
+            product_info[name]['qty'] = 0
+            product_info[name]['money'] = 0.0
 
-    # Step 2: Filter low performing products
-    low_products = []
+        product_info[name]['qty'] = product_info[name]['qty'] + qty
+        product_info[name]['money'] = product_info[name]['money'] + (qty * price)
 
-    for name, data in products.items():
-        if data['total_qty'] < threshold:
-            low_products.append(
-                (name, data['total_qty'], data['total_revenue'])
+    low_list = []
+
+    for name in product_info:
+        if product_info[name]['qty'] < limit:
+            low_list.append(
+                (name, product_info[name]['qty'], product_info[name]['money'])
             )
 
-    # Step 3: Sort by quantity ascending
-    low_products.sort(key=lambda x: x[1])
+    low_list.sort(key=lambda x: x[1])
 
-    return low_products
-
-
-
-#-------------------------------------------------
-def generate_sales_report(transactions, enriched_transactions, output_file='output/sales_report.txt'):
-    import os
-    from datetime import datetime
-    from collections import defaultdict
-
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
-    # ---------------- BASIC STATS ----------------
-    total_transactions = len(transactions)
-    total_revenue = sum(t['Quantity'] * t['UnitPrice'] for t in transactions)
-    avg_order_value = total_revenue / total_transactions if total_transactions else 0
-
-    dates = sorted(t['Date'] for t in transactions)
-    date_range = f"{dates[0]} to {dates[-1]}" if dates else "N/A"
-
-    # ---------------- REGION PERFORMANCE ----------------
-    region_data = defaultdict(lambda: {'revenue': 0, 'count': 0})
-
-    for t in transactions:
-        amount = t['Quantity'] * t['UnitPrice']
-        region_data[t['Region']]['revenue'] += amount
-        region_data[t['Region']]['count'] += 1
-
-    region_stats = []
-    for region, data in region_data.items():
-        percent = (data['revenue'] / total_revenue) * 100 if total_revenue else 0
-        region_stats.append((region, data['revenue'], percent, data['count']))
-
-    region_stats.sort(key=lambda x: x[1], reverse=True)
-
-    # ---------------- PRODUCT DATA ----------------
-    product_data = defaultdict(lambda: {'qty': 0, 'rev': 0})
-
-    for t in transactions:
-        product_data[t['ProductName']]['qty'] += t['Quantity']
-        product_data[t['ProductName']]['rev'] += t['Quantity'] * t['UnitPrice']
-
-    top_products = sorted(
-        product_data.items(),
-        key=lambda x: x[1]['qty'],
-        reverse=True
-    )[:5]
-
-    low_products = [
-        (p, d['qty'], d['rev'])
-        for p, d in product_data.items()
-        if d['qty'] < 10
-    ]
-
-    # ---------------- CUSTOMER DATA ----------------
-    customer_data = defaultdict(lambda: {'spent': 0, 'count': 0})
-
-    for t in transactions:
-        customer_data[t['CustomerID']]['spent'] += t['Quantity'] * t['UnitPrice']
-        customer_data[t['CustomerID']]['count'] += 1
-
-    top_customers = sorted(
-        customer_data.items(),
-        key=lambda x: x[1]['spent'],
-        reverse=True
-    )[:5]
-
-    # ---------------- DAILY TREND ----------------
-    daily_data = defaultdict(lambda: {'rev': 0, 'count': 0, 'customers': set()})
-
-    for t in transactions:
-        amount = t['Quantity'] * t['UnitPrice']
-        daily_data[t['Date']]['rev'] += amount
-        daily_data[t['Date']]['count'] += 1
-        daily_data[t['Date']]['customers'].add(t['CustomerID'])
-
-    daily_trend = sorted(daily_data.items())
-
-    # ---------------- API ENRICHMENT ----------------
-    enriched_success = [t for t in enriched_transactions if t.get('API_Match')]
-    enriched_failed = [t for t in enriched_transactions if not t.get('API_Match')]
-
-    success_rate = (
-        (len(enriched_success) / len(enriched_transactions)) * 100
-        if enriched_transactions else 0
-    )
-
-    failed_products = sorted(set(t['ProductName'] for t in enriched_failed))
-
-    # ---------------- WRITE REPORT ----------------
-    with open(output_file, 'w', encoding='utf-8') as f:
-
-        f.write("=" * 44 + "\n")
-        f.write("       SALES ANALYTICS REPORT\n")
-        f.write(f"   Generated: {datetime.now()}\n")
-        f.write(f"   Records Processed: {total_transactions}\n")
-        f.write("=" * 44 + "\n\n")
-
-        f.write("OVERALL SUMMARY\n")
-        f.write("-" * 44 + "\n")
-        f.write(f"Total Revenue:        ₹{total_revenue:,.2f}\n")
-        f.write(f"Total Transactions:   {total_transactions}\n")
-        f.write(f"Average Order Value:  ₹{avg_order_value:,.2f}\n")
-        f.write(f"Date Range:           {date_range}\n\n")
-
-        f.write("REGION-WISE PERFORMANCE\n")
-        f.write("-" * 44 + "\n")
-        f.write("Region     Sales (₹)     % Total   Transactions\n")
-        for r, rev, pct, cnt in region_stats:
-            f.write(f"{r:<10} ₹{rev:>10,.0f}     {pct:>6.2f}%      {cnt}\n")
-        f.write("\n")
-
-        f.write("TOP 5 PRODUCTS\n")
-        f.write("-" * 44 + "\n")
-        for i, (name, d) in enumerate(top_products, 1):
-            f.write(f"{i}. {name} | Qty: {d['qty']} | Revenue: ₹{d['rev']:,.2f}\n")
-        f.write("\n")
-
-        f.write("TOP 5 CUSTOMERS\n")
-        f.write("-" * 44 + "\n")
-        for i, (cid, d) in enumerate(top_customers, 1):
-            f.write(f"{i}. {cid} | Spent: ₹{d['spent']:,.2f} | Orders: {d['count']}\n")
-        f.write("\n")
-
-        f.write("DAILY SALES TREND\n")
-        f.write("-" * 44 + "\n")
-        for date, d in daily_trend:
-            f.write(
-                f"{date} | Revenue: ₹{d['rev']:,.2f} | "
-                f"Transactions: {d['count']} | "
-                f"Customers: {len(d['customers'])}\n"
-            )
-        f.write("\n")
-
-        f.write("LOW PERFORMING PRODUCTS\n")
-        f.write("-" * 44 + "\n")
-        for p, q, r in low_products:
-            f.write(f"- {p} | Qty: {q} | Revenue: ₹{r:,.2f}\n")
-        f.write("\n")
-
-        f.write("API ENRICHMENT SUMMARY\n")
-        f.write("-" * 44 + "\n")
-        f.write(f"Products Enriched: {len(enriched_success)}\n")
-        f.write(f"Success Rate: {success_rate:.2f}%\n")
-        f.write("Failed Products:\n")
-        for p in failed_products:
-            f.write(f"- {p}\n")
-
-    print(" Sales report generated at:", output_file)
+    return low_list

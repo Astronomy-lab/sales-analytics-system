@@ -3,101 +3,134 @@
 import requests
 
 
+# -----------------------------------------
+# FETCH ALL PRODUCTS FROM API
+# -----------------------------------------
 def fetch_all_products():
     """
-    Fetches all products from DummyJSON API
+    This function gets product data from DummyJSON API
     """
-    url = "https://dummyjson.com/products?limit=100"
+
+    api_url = "https://dummyjson.com/products?limit=100"
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(api_url, timeout=10)
+
+        # check if request worked
         response.raise_for_status()
 
         data = response.json()
-        products = data.get("products", [])
 
-        print("API SUCCESS: Products fetched =", len(products))
-        return products
+        if "products" in data:
+            product_list = data["products"]
+        else:
+            product_list = []
 
-    except Exception as e:
-        print("API FAILED:", e)
+        print("API SUCCESS - Total products:", len(product_list))
+        return product_list
+
+    except Exception as error:
+        print("API ERROR:", error)
         return []
 
 
+# -----------------------------------------
+# CREATE PRODUCT ID MAPPING
+# -----------------------------------------
 def create_product_mapping(api_products):
     """
-    Creates mapping of product ID → product info
+    Creates a dictionary using product id as key
     """
-    product_map = {}
+
+    mapping = {}
 
     for product in api_products:
-        product_id = product.get("id")
+        pid = product.get("id")
 
-        product_map[product_id] = {
-            "title": product.get("title"),
-            "category": product.get("category"),
-            "brand": product.get("brand"),
-            "rating": product.get("rating")
-        }
+        mapping[pid] = {}
+        mapping[pid]['title'] = product.get("title")
+        mapping[pid]['category'] = product.get("category")
+        mapping[pid]['brand'] = product.get("brand")
+        mapping[pid]['rating'] = product.get("rating")
 
-    return product_map
+    return mapping
 
 
-def enrich_sales_data(transactions, product_mapping):
+# -----------------------------------------
+# ENRICH SALES DATA USING API DATA
+# -----------------------------------------
+def enrich_sales_data(transactions, product_map):
     """
-    Enriches transaction data with API product info
+    Adds API details to sales transactions
     """
-    enriched = []
 
-    for t in transactions:
-        enriched_txn = t.copy()
+    final_data = []
+
+    for item in transactions:
+        new_item = item.copy()
 
         try:
-            # Extract numeric part of ProductID (P101 → 101)
-            pid = int(''.join(filter(str.isdigit, t['ProductID'])))
+            # ProductID looks like P101, so remove P
+            product_id_text = item['ProductID'].replace("P", "")
+            product_id_number = int(product_id_text)
 
-            if pid in product_mapping:
-                enriched_txn['API_Category'] = product_mapping[pid]['category']
-                enriched_txn['API_Brand'] = product_mapping[pid]['brand']
-                enriched_txn['API_Rating'] = product_mapping[pid]['rating']
-                enriched_txn['API_Match'] = True
+            if product_id_number in product_map:
+                new_item['API_Category'] = product_map[product_id_number]['category']
+                new_item['API_Brand'] = product_map[product_id_number]['brand']
+                new_item['API_Rating'] = product_map[product_id_number]['rating']
+                new_item['API_Match'] = True
             else:
-                enriched_txn['API_Category'] = None
-                enriched_txn['API_Brand'] = None
-                enriched_txn['API_Rating'] = None
-                enriched_txn['API_Match'] = False
+                new_item['API_Category'] = None
+                new_item['API_Brand'] = None
+                new_item['API_Rating'] = None
+                new_item['API_Match'] = False
 
         except:
-            enriched_txn['API_Category'] = None
-            enriched_txn['API_Brand'] = None
-            enriched_txn['API_Rating'] = None
-            enriched_txn['API_Match'] = False
+            new_item['API_Category'] = None
+            new_item['API_Brand'] = None
+            new_item['API_Rating'] = None
+            new_item['API_Match'] = False
 
-        enriched.append(enriched_txn)
+        final_data.append(new_item)
 
-    return enriched
+    return final_data
 
 
-def save_enriched_data(enriched_transactions, filename="data/enriched_sales_data.txt"):
+# -----------------------------------------
+# SAVE ENRICHED DATA TO FILE
+# -----------------------------------------
+def save_enriched_data(data, file_name="data/enriched_sales_data.txt"):
     """
-    Saves enriched transactions back to file
+    Saves enriched data into a text file
     """
-    with open(filename, "w", encoding="utf-8") as file:
 
-        header = (
-            "TransactionID|Date|ProductID|ProductName|Quantity|UnitPrice|"
-            "CustomerID|Region|API_Category|API_Brand|API_Rating|API_Match\n"
+    file = open(file_name, "w", encoding="utf-8")
+
+    header = (
+        "TransactionID|Date|ProductID|ProductName|Quantity|UnitPrice|"
+        "CustomerID|Region|API_Category|API_Brand|API_Rating|API_Match\n"
+    )
+
+    file.write(header)
+
+    for item in data:
+        line = (
+            item['TransactionID'] + "|" +
+            item['Date'] + "|" +
+            item['ProductID'] + "|" +
+            item['ProductName'] + "|" +
+            str(item['Quantity']) + "|" +
+            str(item['UnitPrice']) + "|" +
+            item['CustomerID'] + "|" +
+            item['Region'] + "|" +
+            str(item.get('API_Category')) + "|" +
+            str(item.get('API_Brand')) + "|" +
+            str(item.get('API_Rating')) + "|" +
+            str(item.get('API_Match')) + "\n"
         )
-        file.write(header)
 
-        for t in enriched_transactions:
-            line = (
-                f"{t['TransactionID']}|{t['Date']}|{t['ProductID']}|"
-                f"{t['ProductName']}|{t['Quantity']}|{t['UnitPrice']}|"
-                f"{t['CustomerID']}|{t['Region']}|"
-                f"{t.get('API_Category')}|{t.get('API_Brand')}|"
-                f"{t.get('API_Rating')}|{t.get('API_Match')}\n"
-            )
-            file.write(line)
+        file.write(line)
 
-    print("Enriched data saved to:", filename)
+    file.close()
+
+    print("Enriched data saved in file:", file_name)
